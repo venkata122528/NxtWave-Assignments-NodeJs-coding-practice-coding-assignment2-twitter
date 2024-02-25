@@ -158,14 +158,13 @@ app.get(
     const userData = await db.get(toKnowFollowerUserId);
 
     const toGetUserFollowingUsersTweetsQuery = `SELECT tweet.tweet
-    ,COUNT(like.like_id)AS likes,COUNT(reply.reply_id)AS replies
+    ,(SELECT COUNT(like_id) FROM like WHERE tweet_id=tweet.tweet_id) AS likes
+    ,(SELECT COUNT(reply_id) FROM reply WHERE tweet_id=tweet.tweet_id) AS replies
     ,tweet.date_time AS dateTime 
-    FROM follower LEFT JOIN tweet ON follower.following_user_id=tweet.user_id 
-    LEFT JOIN like ON tweet.tweet_id=like.tweet_id 
-    LEFT JOIN reply ON tweet.tweet_id=reply.tweet_id 
+    FROM follower INNER JOIN tweet ON follower.following_user_id=tweet.user_id 
     WHERE follower.follower_user_id=${userData.user_id} AND tweet.tweet_id=${tweetId};`;
     const [result] = await db.all(toGetUserFollowingUsersTweetsQuery);
-    if (result.tweet === null) {
+    if (result === undefined) {
       response.status(401);
       response.send("Invalid Request");
     } else {
@@ -239,12 +238,16 @@ app.get("/user/tweets/", authenticateJwtToken, async (request, response) => {
   const toKnowFollowerUserId = `SELECT * FROM user WHERE username LIKE '${username}';`;
   const userData = await db.get(toKnowFollowerUserId);
 
-  const toGetTweetsOfUserQuery = `SELECT tweet.tweet,COUNT(like.like_id)AS likes
-  ,COUNT(reply.reply_id)AS replies,tweet.date_time AS dateTime 
-  FROM tweet LEFT JOIN reply 
-    ON tweet.tweet_id=reply.tweet_id LEFT JOIN like 
-    ON tweet.tweet_id=like.tweet_id WHERE tweet.user_id=${userData.user_id} 
-    GROUP BY tweet.tweet_id;`;
+  const toGetTweetsOfUserQuery = `SELECT tweet,(
+SELECT COUNT(like_id)
+FROM like
+WHERE tweet_id=tweet.tweet_id
+) AS likes,
+(
+SELECT COUNT(reply_id)
+FROM reply
+WHERE tweet_id=tweet.tweet_id
+) AS replies,date_time AS dateTime FROM tweet WHERE user_id=${userData.user_id};`;
   const result = await db.all(toGetTweetsOfUserQuery);
   response.send(result);
 });
